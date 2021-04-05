@@ -14,12 +14,14 @@
 #define TURN_DURATION 5
 
 /*** COMMANDS ***/
-#define MOVE 0
-#define ATTACK 1
 #define TURN 2
 #define DESTROY 3
 #define END 4
 #define NO_CMD -1
+
+/*** MOVES ***/
+#define MOVE 0
+#define ATTACK 1
 
 /*** MAP ***/
 #define MAP_MAX_X 20 // Number of columns of the map

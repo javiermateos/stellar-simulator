@@ -5,12 +5,11 @@
 
 #include "map.h"
 
-int map_clean_square(map_t *map, int posy, int posx)
+void map_clean_square(map_t *map, int posy, int posx)
 {
 	map->squares[posy][posx].team=-1;
 	map->squares[posy][posx].id_spaceship=-1;
 	map->squares[posy][posx].symbol=SYMB_EMPTY;
-	return 0;
 }
 
 square_t map_get_square(map_t *map, int posy, int posx)
@@ -18,7 +17,7 @@ square_t map_get_square(map_t *map, int posy, int posx)
 	return map->squares[posy][posx];
 }
 
-int map_get_distancia(map_t *map, int oriy,int orix,int targety,int targetx)
+int map_get_distance(map_t *map, int oriy,int orix,int targety,int targetx)
 {
 	int distx,disty;
 
@@ -27,12 +26,12 @@ int map_get_distancia(map_t *map, int oriy,int orix,int targety,int targetx)
 	return (distx > disty)? distx:disty;
 }
 
-spaceship_t map_get_nave(map_t *map, int team, int id_spaceship)
+spaceship_t map_get_spaceship(map_t *map, int team, int id_spaceship)
 {
 	return map->spaceships[team][id_spaceship];
 }
 
-int map_get_num_naves(map_t *map, int team)
+int map_get_num_spaceships(map_t *map, int team)
 {
 	return map->n_spaceships_alive[team];
 }
@@ -70,7 +69,7 @@ void map_set_symbol(map_t *map, int posy, int posx, char symbol)
 }
 
 
-int map_set_nave(map_t *map, spaceship_t spaceship)
+int map_set_spaceship(map_t *map, spaceship_t spaceship)
 {
 	if (spaceship.team >= N_TEAMS) return -1;
 	if (spaceship.id >= N_SPACESHIPS) return -1;
@@ -86,12 +85,12 @@ int map_set_nave(map_t *map, spaceship_t spaceship)
 	return 0;
 }
 
-void map_set_num_naves(map_t *map, int team, int num_spaceships)
+void map_set_num_spaceships(map_t *map, int team, int num_spaceships)
 {
 	map->n_spaceships_alive[team]=num_spaceships;
 }
 
-void map_send_misil(map_t *map, int originy, int originx, int targety, int targetx)
+void map_send_missil(map_t *map, int originy, int originx, int targety, int targetx)
 {
 	int px=originx;
 	int py=originy;
