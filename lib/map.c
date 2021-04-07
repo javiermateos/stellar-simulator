@@ -5,6 +5,8 @@
 
 #include "map.h"
 
+char team_symbols[N_TEAMS] ={'A','B','C'};
+
 void map_clean_square(map_t *map, int posy, int posx)
 {
 	map->squares[posy][posx].team=-1;

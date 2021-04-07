@@ -42,6 +42,7 @@
 #define SEM_READY_NAME "/sem_ready"
 
 #define N_ACTIONS_LEADER 2 // Number of leader actions in each turn
+#define MAX_CHAR_ID 12 // Max chars for an identification integer
 
 typedef struct {
     int health; // Remaining health

@@ -5,8 +5,6 @@
 
 #include <simulator.h> // spaceship_t
 
-char team_symbols[N_TEAMS] ={'A','B','C'};
-
 // Pone una square del map a vacío
 void map_clean_square(map_t *map, int posy, int posx);
 

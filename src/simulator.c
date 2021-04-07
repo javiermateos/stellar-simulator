@@ -13,7 +13,8 @@
 #include "map.h"
 #include "simulator.h"
 
-#define MAX_CHAR_ID_LEADER 12 // Max chars for an integer
+
+extern char team_symbols[N_TEAMS];
 
 int flag_SIGALRM;
 int fd_pipe_leader[N_TEAMS][2]; // Used to communicate with leader processes
@@ -34,7 +35,7 @@ int main(int argc, char* argv[])
 {
     int i;
     pid_t pid;
-    char id_leader[MAX_CHAR_ID_LEADER];
+    char id_leader[MAX_CHAR_ID];
     int sval;
     command_t cmd; // Commands sent to leaders
     move_t move;   // Moves sent by spaceships
@@ -166,7 +167,7 @@ static status init_shared_resources()
     }
 
     // Pipes
-    printf("[SIMULATOR] Managing pipes...\n");
+    fprintf(stdout, "[SIMULATOR] Managing pipes...\n");
     for (i = 0; i < N_TEAMS; i++) {
         status = pipe(fd_pipe_leader[i]);
         if (status == -1) {
@@ -181,7 +182,7 @@ static status init_shared_resources()
     attributes.mq_curmsgs = 0;
     attributes.mq_msgsize = sizeof(move_t);
 
-    printf("[SIMULADOR] Managing message queue...\n");
+    fprintf(stdout, "[SIMULADOR] Managing message queue...\n");
     queue = mq_open(MQ_ACTION_NAME,
                     O_CREAT | O_EXCL | O_RDONLY,
                     S_IWUSR | S_IRUSR,
@@ -206,7 +207,7 @@ static status init_shared_resources()
     }
 
     // Signals
-    printf("[SIMULADOR] Managing signals...\n");
+    fprintf(stdout, "[SIMULADOR] Managing signals...\n");
     sigemptyset(&(act.sa_mask));
     act.sa_flags = 0;
     act.sa_handler = handler_SIGALRM;
@@ -320,6 +321,7 @@ static void process_move(move_t move)
     /*Mover*/
     switch (move.type) {
         case MOVE:
+            // TODO: We need to check if the square is still empty
             fprintf(stdout,
                     "[SIMULATOR] ACTION MOVE [%c%d] %d,%d -> %d,%d...\n",
                     src_square.symbol,
@@ -393,6 +395,7 @@ static void process_move(move_t move)
             }
             break;
         default:
+            // TODO: Think about the default case
             break;
     }
 }
