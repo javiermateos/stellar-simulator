@@ -19,8 +19,8 @@ extern char team_symbols[N_TEAMS];
 int flag_SIGALRM;
 int fd_pipe_leader[N_TEAMS][2]; // Used to communicate with leader processes
 int fd_shm_map;                 // Shared memory with the map
-map_t* pmap;                    // pointer to the map
 mqd_t queue;                    // message queue with spaceships
+map_t* pmap = NULL;                    // pointer to the map
 sem_t* sem_w = NULL;            // semaphore for writers
 sem_t* sem_ready = NULL;        // semapore for monitor process
 
@@ -260,6 +260,7 @@ static void free_resources()
     }
 
     mq_close(queue);
+    // Remove every resource allocated
     mq_unlink(MQ_ACTION_NAME);
     sem_unlink(SEM_COUNT_W_NAME);
     sem_unlink(SEM_COUNT_R_NAME);

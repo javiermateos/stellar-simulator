@@ -1,9 +1,9 @@
 #include <signal.h> // sigaction
 #include <stdio.h>  // fprintf
 #include <stdlib.h> // exit
+#include <time.h>   // time
 #include <unistd.h> // pipes
 #include <wait.h>   // wait
-#include <time.h> // time
 
 #include "simulator.h"
 
@@ -57,6 +57,7 @@ int main(int argc, char* argv[])
         }
     }
 
+    // Main loop
     srandom(time(NULL));
     while (1) {
         fprintf(stdout,
@@ -94,10 +95,16 @@ int main(int argc, char* argv[])
                                       &cmd,
                                       sizeof(command_t));
                             }
+                            break;
                     }
                 }
                 break;
             case DESTROY:
+                fprintf(stdout,
+                        "[LEADER %d] Sending DESTROY command to spaceship with "
+                        "id %d...\n",
+                        team,
+                        cmd.id_spaceship);
                 write(fd_pipe_spaceships[cmd.id_spaceship][WRITE],
                       &cmd,
                       sizeof(command_t));
@@ -121,7 +128,7 @@ static status init_shared_resources(int team)
     struct sigaction act;
 
     // Pipes
-    fprintf(stdout, "[LEADER] Managing pipes...\n");
+    fprintf(stdout, "[LEADER %d] Managing pipes...\n", team);
     for (i = 0; i < N_SPACESHIPS; i++) {
         status = pipe(fd_pipe_spaceships[i]);
         if (status == -1) {
