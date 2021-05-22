@@ -138,6 +138,7 @@ static status init_shared_resources(int team)
     }
 
     // Signals
+    fprintf(stdout, "[LEADER %d] Managing signals...\n", team);
     sigemptyset(&(act.sa_mask));
     act.sa_flags = 0;
     act.sa_handler = handler_SIGTERM;

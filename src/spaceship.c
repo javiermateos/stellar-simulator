@@ -16,8 +16,10 @@ int fd_shm_map;      // Shared memory with the map
 map_t* pmap = NULL;  // pointer to the map
 sem_t* sem_w = NULL; // semaphore for writers
 sem_t* sem_r = NULL; // semaphore for readers
+sem_t* sem_mutex = NULL; // semaphore for mutex sem_r
+sem_t* sem_count_r = NULL; // semaphore for counting readers
 
-static status init_shared_resources();
+static status init_shared_resources(int team, int id_spaceship);
 static void free_resources();
 static void handler_SIGTERM();
 static spaceship_t locate_enemy_spaceship(map_t* pmap, spaceship_t spaceship);
@@ -30,6 +32,7 @@ int main(int argc, char* argv[])
     spaceship_t spaceship, attacked_spaceship;
     move_t move;
     int posx, posy, x, y;
+    int count_r = 0;
 
     if (argc != 3) {
         fprintf(stderr, "[SPACESHIP] Wrong number of arguments...\n");
@@ -40,7 +43,7 @@ int main(int argc, char* argv[])
     id_spaceship = atoi(argv[2]);
 
     // Init resources
-    if (!init_shared_resources()) {
+    if (!init_shared_resources(team, id_spaceship)) {
         free_resources();
         exit(EXIT_FAILURE);
     }
@@ -57,8 +60,19 @@ int main(int argc, char* argv[])
             break;
         }
 
+        // Check if the map is being used by the main process
+        sem_wait(sem_mutex);
+        sem_wait(sem_r);
+        sem_wait(sem_count_r);
+        count_r++;
+        if (count_r == 1) {
+            sem_wait(sem_w);
+        }
+        sem_post(sem_count_r);
+        sem_post(sem_r);
+        sem_post(sem_mutex);
+
         // Process the command receive from the team leader
-        // TODO: Control the concurrent access to the map
         spaceship = map_get_spaceship(pmap, team, id_spaceship);
         switch (cmd.type) {
             case ATTACK:
@@ -98,9 +112,9 @@ int main(int argc, char* argv[])
                     } else if (y == 1) {
                         posy++;
                     }
-                    if (x == 2 && y == 2) {
-                        posx++;
-                        posy++;
+                    // Check if the position is out of the map
+                    if(posx > (MAP_MAX_X - 1) || posx < 0 || posy > (MAP_MAX_Y - 1) || posy < 0){
+                        continue;
                     }
                     if (map_is_square_empty(pmap, posx, posy)) {
                         break;
@@ -116,7 +130,13 @@ int main(int argc, char* argv[])
                 move.objetiveY = posy;
                 break;
         }
-        // TODO: Control the concurrent access to shared resources
+        
+        sem_wait(sem_count_r);
+        count_r--;
+        if(count_r == 0){
+            sem_post(sem_w);
+        }
+        sem_post(sem_count_r);
 
         // Send the move to the simulator process
         move.type = cmd.type;
@@ -127,17 +147,18 @@ int main(int argc, char* argv[])
         if (mq_send(queue, (char*)&move, sizeof(move), 1) == -1) {
             perror("[SPACESHIP] Error sending message through the queue...\n");
         }
-    }
+    } // main loop
 
     free_resources();
 
     exit(EXIT_SUCCESS);
 }
 
-static status init_shared_resources()
+static status init_shared_resources(int team, int id_spaceship)
 {
     struct sigaction act;
     // Shared memory
+    fprintf(stdout, "[SPACESHIP %d/%d] Managing shared memory...\n", team, id_spaceship);
     fd_shm_map = shm_open(SHM_MAP_NAME, O_RDONLY, 0);
     if (fd_shm_map == -1) {
         perror("[SPACESHIP] Error opening the shared memory...\n");
@@ -152,7 +173,7 @@ static status init_shared_resources()
     }
 
     // Queue
-    fprintf(stdout, "[SPACESHIP] Managing message queue...\n");
+    fprintf(stdout, "[SPACESHIP %d/%d] Managing message queue...\n", team, id_spaceship);
     queue = mq_open(MQ_ACTION_NAME, O_WRONLY);
     if (queue == (mqd_t)-1) {
         perror("[SPACESHIP] Error creating the queue...\n");
@@ -160,19 +181,33 @@ static status init_shared_resources()
     }
 
     // Semapthores
+    fprintf(stdout, "[SPACESHIP %d/%d] Managing semaphores...\n", team, id_spaceship);
     sem_w = sem_open(SEM_W_NAME, O_RDWR);
     if (sem_w == SEM_FAILED) {
         perror("[SPACESHIP] Error opening the semaphore sem_w..\n");
         return ERROR;
     }
 
-    sem_r = sem_open(SEM_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    sem_r = sem_open(SEM_R_NAME, O_RDWR);
     if (sem_r == SEM_FAILED) {
-        perror("[SPACESHIP] Error creating the semaphore sem_r...\n");
+        perror("[SPACESHIP] Error opening the semaphore sem_r...\n");
+        return ERROR;
+    }
+
+    sem_mutex = sem_open(SEM_MUTEX_R_NAME, O_RDWR);
+    if (sem_mutex == SEM_FAILED) {
+        perror("[SPACESHIP] Error opening the semaphore sem_mutex...\n");
+        return ERROR;
+    }
+
+    sem_count_r = sem_open(SEM_COUNT_R_NAME, O_RDWR);
+    if (sem_count_r == SEM_FAILED) {
+        perror("[SPACESHIP] Error opening the semaphore sem_count_r...\n");
         return ERROR;
     }
 
     // Signals
+    fprintf(stdout, "[SPACESHIP %d/%d] Managing signals...\n", team, id_spaceship);
     sigemptyset(&(act.sa_mask));
     act.sa_flags = 0;
     act.sa_handler = handler_SIGTERM;
@@ -190,7 +225,7 @@ static status init_shared_resources()
         return ERROR;
     }
 
-    // Ignore SIGALRM because we used it for the turn
+    // Ignore SIGALRM because we used it for the turn in the main process
     act.sa_handler = SIG_IGN;
     sigemptyset(&(act.sa_mask));
     act.sa_flags = 0;
@@ -208,9 +243,9 @@ static void free_resources()
     mq_close(queue);
     sem_close(sem_w);
     sem_close(sem_r);
+    sem_close(sem_mutex);
+    sem_close(sem_count_r);
     munmap(pmap, sizeof(map_t));
-
-    exit(EXIT_SUCCESS);
 }
 
 static void handler_SIGTERM(int signal)
@@ -226,8 +261,7 @@ static unsigned int rand_interval(unsigned int min, unsigned int max)
     const unsigned int buckets = RAND_MAX / range;
     const unsigned int limit = buckets * range;
 
-    do
-    {
+    do {
         r = random();
     } while (r >= limit);
 

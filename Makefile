@@ -28,3 +28,11 @@ $(BUILD)/leader: $(SRC)/leader.c
 
 $(BUILD)/spaceship: $(LIB)/map.c $(SRC)/spaceship.c
 	$(CC) $(CFLAGS) $^ -o $@ -lrt -lm -lncurses
+
+runv_simulador:
+	@echo "> Executing simulador with valgrind..."
+	valgrind -s --leak-check=full --track-origins=yes --show-leak-kinds=all ./$(BUILD)/simulator
+
+runv_monitor:
+	@echo "> Executing monitor with valgrind..."
+	valgrind -s --leak-check=full --track-origins=yes --show-leak-kinds=all ./$(BUILD)/monitor

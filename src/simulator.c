@@ -3,7 +3,7 @@
 #include <mqueue.h>    // mq_open
 #include <semaphore.h> // sem_open
 #include <signal.h>    // sigaction
-#include <stdio.h>     // fprintf
+#include <stdio.h>     // fprintf, perror
 #include <stdlib.h>    // exit
 #include <sys/mman.h>  // shm_open
 #include <time.h>      // time
@@ -23,6 +23,9 @@ mqd_t queue;                    // message queue with spaceships
 map_t* pmap = NULL;                    // pointer to the map
 sem_t* sem_w = NULL;            // semaphore for writers
 sem_t* sem_ready = NULL;        // semapore for monitor process
+sem_t* sem_r = NULL; // semaphore for readers
+sem_t* sem_mutex = NULL; // semaphore for mutex sem_r
+sem_t* sem_count_r = NULL; // semaphore for counting readers
 
 static status init_shared_resources();
 static void init_map();
@@ -101,18 +104,22 @@ int main(int argc, char* argv[])
             fprintf(stdout, "[SIMULATOR] Message received in the queue...\n");
 
             // Process the move sent by the spaceship
+            sem_wait(sem_r);
             sem_wait(sem_w);
 
             process_move(move);
 
             sem_post(sem_w);
+            sem_post(sem_r);
         }
         // Upload the map
+        sem_wait(sem_r);
         sem_wait(sem_w);
 
         map_restore(pmap);
 
         sem_post(sem_w);
+        sem_post(sem_r);
 
         // Check if there is a winner
         for (i = 0, teams_alive = 0; i < N_TEAMS; i++) {
@@ -131,7 +138,7 @@ int main(int argc, char* argv[])
             }
             break;
         }
-    }
+    } // main loop
 
     free_resources();
 
@@ -193,6 +200,7 @@ static status init_shared_resources()
     }
 
     // Semaphores
+    fprintf(stdout, "[SIMULADOR] Managing semaphores...\n");
     sem_ready =
       sem_open(SEM_READY_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 0);
     if (sem_ready == SEM_FAILED) {
@@ -206,6 +214,24 @@ static status init_shared_resources()
         return ERROR;
     }
 
+    sem_r = sem_open(SEM_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    if (sem_r == SEM_FAILED) {
+        perror("[SIMULATOR] Error creating the semaphore sem_r...\n");
+        return ERROR;
+    }
+
+    sem_mutex = sem_open(SEM_MUTEX_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    if (sem_mutex == SEM_FAILED) {
+        perror("[SIMULATOR] Error creating the semaphore sem_mutex...\n");
+        return ERROR;
+    }
+
+    sem_count_r = sem_open(SEM_COUNT_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    if (sem_count_r == SEM_FAILED) {
+        perror("[SIMULATOR] Error creating the semaphore sem_count_r...\n");
+        return ERROR;
+    }
+
     // Signals
     fprintf(stdout, "[SIMULADOR] Managing signals...\n");
     sigemptyset(&(act.sa_mask));
@@ -216,7 +242,7 @@ static status init_shared_resources()
         return ERROR;
     }
 
-    sigfillset(&(act.sa_mask));
+    sigemptyset(&(act.sa_mask));
     act.sa_flags = 0;
     act.sa_handler = handler_SIGINT;
     if (sigaction(SIGINT, &act, NULL) < 0) {
@@ -259,15 +285,16 @@ static void free_resources()
         close(fd_pipe_leader[i][READ]);
     }
 
-    mq_close(queue);
     // Remove every resource allocated
+    mq_close(queue);
     mq_unlink(MQ_ACTION_NAME);
-    sem_unlink(SEM_COUNT_W_NAME);
+
     sem_unlink(SEM_COUNT_R_NAME);
     sem_unlink(SEM_MUTEX_R_NAME);
     sem_unlink(SEM_W_NAME);
     sem_unlink(SEM_R_NAME);
     sem_unlink(SEM_READY_NAME);
+
     munmap(pmap, sizeof(map_t));
     shm_unlink(SHM_MAP_NAME);
 }
@@ -322,19 +349,20 @@ static void process_move(move_t move)
     /*Mover*/
     switch (move.type) {
         case MOVE:
-            // TODO: We need to check if the square is still empty
-            fprintf(stdout,
-                    "[SIMULATOR] ACTION MOVE [%c%d] %d,%d -> %d,%d...\n",
-                    src_square.symbol,
-                    src_square.id_spaceship,
-                    move.originX,
-                    move.originY,
-                    move.objetiveX,
-                    move.objetiveY);
-            spaceship = map_get_spaceship(pmap, move.team, move.id_spaceship);
-            spaceship.posx = move.objetiveX;
-            spaceship.posy = move.objetiveY;
-            map_set_spaceship(pmap, spaceship);
+            if (map_is_square_empty(pmap, move.objetiveY, move.objetiveX)) {
+                fprintf(stdout,
+                        "[SIMULATOR] ACTION MOVE [%c%d] %d,%d -> %d,%d...\n",
+                        src_square.symbol,
+                        src_square.id_spaceship,
+                        move.originX,
+                        move.originY,
+                        move.objetiveX,
+                        move.objetiveY);
+                spaceship = map_get_spaceship(pmap, move.team, move.id_spaceship);
+                spaceship.posx = move.objetiveX;
+                spaceship.posy = move.objetiveY;
+                map_set_spaceship(pmap, spaceship);
+            }
             break;
         case ATTACK:
             map_send_missil(pmap, move.originY, move.originX, move.objetiveY, move.objetiveX);
@@ -394,9 +422,6 @@ static void process_move(move_t move)
                 }
                 map_set_spaceship(pmap, attacked_spaceship);
             }
-            break;
-        default:
-            // TODO: Think about the default case
             break;
     }
 }

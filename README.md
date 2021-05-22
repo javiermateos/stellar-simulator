@@ -37,7 +37,10 @@ The interprocess communication used are:
 make
 cd build
 # First terminal
-./simulador
+./simulator
 # Second terminal
 ./monitor
 ```
+**Note**: If you don't launch first the simulator you will get an error saying
+that one semaphore was not able to be opened. So, you always have to launch
+the simulator program first.

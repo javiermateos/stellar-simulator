@@ -34,9 +34,8 @@
 /*** NAMES OF SHARED RESOURCES ***/
 #define SHM_MAP_NAME "/shm_map"
 #define MQ_ACTION_NAME "/mq_actions"
-#define SEM_COUNT_W_NAME "/sem_count_w"
 #define SEM_COUNT_R_NAME "/sem_count_r"
-#define SEM_MUTEX_R_NAME "/sem_mutex_r"
+#define SEM_MUTEX_R_NAME "/sem_mutex"
 #define SEM_W_NAME "/sem_w"
 #define SEM_R_NAME "/sem_r"
 #define SEM_READY_NAME "/sem_ready"
