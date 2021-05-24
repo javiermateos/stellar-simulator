@@ -6,7 +6,7 @@
 #include <stdlib.h>    // exit
 #include <sys/mman.h>  // shm_open
 #include <time.h>      // time
-#include <unistd.h> // STDIN_FILENO
+#include <unistd.h>    // STDIN_FILENO
 
 #include "map.h"
 #include "simulator.h"

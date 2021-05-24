@@ -1,18 +1,17 @@
 #include <errno.h>     // errno
 #include <fcntl.h>     // O_* constants
 #include <semaphore.h> // sem_open
+#include <signal.h>    // sigaction
 #include <stdio.h>     // fprintf, perror
 #include <stdlib.h>    // exit
 #include <sys/mman.h>  // shm_open
-#include <unistd.h> // usleep
-#include <signal.h>    // sigaction
+#include <unistd.h>    // usleep
 
 #include "gamescreen.h"
-#include "simulator.h"
 #include "map.h"
+#include "simulator.h"
 
 #define SCREEN_REFRESH 10000
-
 
 extern char team_symbols[N_TEAMS];
 
@@ -45,7 +44,7 @@ int main(int argc, char* argv[])
     // Main loop
     while (1) {
         // We dont need to control the access to map because in case that
-        // the monitor shows wrong information about the map it will be 
+        // the monitor shows wrong information about the map it will be
         // refreshed in 0.01 secs.
         print_map(pmap);
         usleep(SCREEN_REFRESH);
