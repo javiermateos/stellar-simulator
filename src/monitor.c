@@ -13,6 +13,9 @@
 
 #define SCREEN_REFRESH 10000
 
+
+extern char team_symbols[N_TEAMS];
+
 int fd_shm_map;          // Shared memory with the map
 map_t* pmap = NULL;      // pointer to the map
 sem_t* sem_ready = NULL; // semapore for monitor process
@@ -24,6 +27,10 @@ static void handler_SIGINT(int signal);
 
 int main(int argc, char* argv[])
 {
+    int i;
+    int teams_alive;
+    int winner;
+
     // init resources
     if (!init_shared_resources()) {
         free_resources();
@@ -42,7 +49,24 @@ int main(int argc, char* argv[])
         // refreshed in 0.01 secs.
         print_map(pmap);
         usleep(SCREEN_REFRESH);
+
+        // Check if there is a winner
+        for (i = 0, teams_alive = 0; i < N_TEAMS; i++) {
+            if (map_get_num_spaceships(pmap, i)) {
+                teams_alive++;
+                winner = i;
+            }
+        }
+
+        if (teams_alive == 1) {
+            break;
+        }
     }
+
+    screen_end();
+
+    fprintf(stdout, "[MONITOR] Winner: %c...\n", team_symbols[winner]);
+    free_resources();
 
     exit(EXIT_SUCCESS);
 }
@@ -105,7 +129,7 @@ static void print_map(map_t* ptipo_mapa)
 
 static void handler_SIGINT(int signal)
 {
-    free_resources();
     screen_end();
+    free_resources();
     exit(EXIT_SUCCESS);
 }

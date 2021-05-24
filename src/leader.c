@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
                       sizeof(command_t));
                 break;
         }
-        // Check if is the end
+        // Check if it is the end
         if (cmd.type == END) {
             break;
         }
@@ -183,6 +183,7 @@ static void free_resources()
 
 static void handler_SIGTERM(int signal)
 {
+    fprintf(stdout, "Signal SIGTERM received by pid = %d\n", getpid());
     free_resources();
     exit(EXIT_SUCCESS);
 }

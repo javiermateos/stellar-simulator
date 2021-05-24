@@ -13,19 +13,18 @@
 #include "map.h"
 #include "simulator.h"
 
-
 extern char team_symbols[N_TEAMS];
 
 int flag_SIGALRM;
 int fd_pipe_leader[N_TEAMS][2]; // Used to communicate with leader processes
 int fd_shm_map;                 // Shared memory with the map
 mqd_t queue;                    // message queue with spaceships
-map_t* pmap = NULL;                    // pointer to the map
+map_t* pmap = NULL;             // pointer to the map
 sem_t* sem_w = NULL;            // semaphore for writers
 sem_t* sem_ready = NULL;        // semapore for monitor process
-sem_t* sem_r = NULL; // semaphore for readers
-sem_t* sem_mutex = NULL; // semaphore for mutex sem_r
-sem_t* sem_count_r = NULL; // semaphore for counting readers
+sem_t* sem_r = NULL;            // semaphore for readers
+sem_t* sem_mutex = NULL;        // semaphore for mutex sem_r
+sem_t* sem_count_r = NULL;      // semaphore for counting readers
 
 static status init_shared_resources();
 static void init_map();
@@ -111,6 +110,8 @@ int main(int argc, char* argv[])
 
             sem_post(sem_w);
             sem_post(sem_r);
+
+            usleep(100000);
         }
         // Upload the map
         sem_wait(sem_r);
@@ -131,7 +132,7 @@ int main(int argc, char* argv[])
 
         if (teams_alive == 1) {
             fprintf(
-              stdout, " [SIMULATOR] Winner: %c...\n", team_symbols[winner]);
+              stdout, "[SIMULATOR] Winner: %c...\n", team_symbols[winner]);
             cmd.type = END;
             for (i = 0; i < N_TEAMS; i++) {
                 write(fd_pipe_leader[i][WRITE], &cmd, sizeof(command_t));
@@ -220,13 +221,15 @@ static status init_shared_resources()
         return ERROR;
     }
 
-    sem_mutex = sem_open(SEM_MUTEX_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    sem_mutex =
+      sem_open(SEM_MUTEX_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
     if (sem_mutex == SEM_FAILED) {
         perror("[SIMULATOR] Error creating the semaphore sem_mutex...\n");
         return ERROR;
     }
 
-    sem_count_r = sem_open(SEM_COUNT_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 1);
+    sem_count_r =
+      sem_open(SEM_COUNT_R_NAME, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR, 0);
     if (sem_count_r == SEM_FAILED) {
         perror("[SIMULATOR] Error creating the semaphore sem_count_r...\n");
         return ERROR;
@@ -242,7 +245,7 @@ static status init_shared_resources()
         return ERROR;
     }
 
-    sigemptyset(&(act.sa_mask));
+    sigfillset(&(act.sa_mask)); // Block all signals while processing SIGINT
     act.sa_flags = 0;
     act.sa_handler = handler_SIGINT;
     if (sigaction(SIGINT, &act, NULL) < 0) {
@@ -339,12 +342,15 @@ static void init_map()
 
 static void process_move(move_t move)
 {
-    square_t src_square, dst_square;
+    square_t square;
     spaceship_t attacked_spaceship, spaceship;
     command_t cmd;
 
-    src_square = map_get_square(pmap, move.originY, move.originX);
-    dst_square = map_get_square(pmap, move.objetiveY, move.objetiveX);
+    spaceship = map_get_spaceship(pmap, move.team, move.id_spaceship);
+    if (!spaceship.alive) {
+        // The spaceship die before it move
+        return;
+    }
 
     /*Mover*/
     switch (move.type) {
@@ -352,25 +358,30 @@ static void process_move(move_t move)
             if (map_is_square_empty(pmap, move.objetiveY, move.objetiveX)) {
                 fprintf(stdout,
                         "[SIMULATOR] ACTION MOVE [%c%d] %d,%d -> %d,%d...\n",
-                        src_square.symbol,
-                        src_square.id_spaceship,
+                        team_symbols[spaceship.team],
+                        spaceship.id,
                         move.originX,
                         move.originY,
                         move.objetiveX,
                         move.objetiveY);
-                spaceship = map_get_spaceship(pmap, move.team, move.id_spaceship);
+                map_clean_square(pmap, spaceship.posy, spaceship.posx);
                 spaceship.posx = move.objetiveX;
                 spaceship.posy = move.objetiveY;
                 map_set_spaceship(pmap, spaceship);
             }
             break;
         case ATTACK:
-            map_send_missil(pmap, move.originY, move.originX, move.objetiveY, move.objetiveX);
-            if (map_is_square_empty(pmap, move.objetiveY, move.objetiveX)) {
+            map_send_missil(
+              pmap, move.originY, move.originX, move.objetiveY, move.objetiveX);
+            square = map_get_square(pmap, move.objetiveY, move.objetiveX);
+            attacked_spaceship =
+              map_get_spaceship(pmap, square.team, square.id_spaceship);
+            if (map_is_square_empty(pmap, move.objetiveY, move.objetiveX) ||
+                !attacked_spaceship.alive) {
                 printf("[SIMULATOR] ACTION ATTACK [%c%d] %d,%d -> %d,%d: "
                        "FAILED: Objective square empty...\n",
-                       src_square.symbol,
-                       src_square.id_spaceship,
+                       team_symbols[spaceship.team],
+                       spaceship.id,
                        move.originX,
                        move.originY,
                        move.objetiveX,
@@ -378,16 +389,14 @@ static void process_move(move_t move)
                 map_set_symbol(
                   pmap, move.objetiveY, move.objetiveX, SYMB_WATER);
             } else {
-                attacked_spaceship = map_get_spaceship(
-                  pmap, dst_square.team, dst_square.id_spaceship);
                 attacked_spaceship.health =
                   attacked_spaceship.health - ATACK_DAMAGE;
                 if (attacked_spaceship.health <= 0) {
                     printf(
                       "[SIMULATOR] ACTION ATTACK [%c%d] %d,%d -> %d,%d: target "
                       "destroyed...\n",
-                      src_square.symbol,
-                      src_square.id_spaceship,
+                      team_symbols[spaceship.team],
+                      spaceship.id,
                       move.originX,
                       move.originY,
                       move.objetiveX,
@@ -410,8 +419,8 @@ static void process_move(move_t move)
                     printf(
                       "[SIMULATOR] ACTION ATTACK [%c%d] %d,%d -> %d,%d: target "
                       "damaged with %d remaining health...\n",
-                      src_square.symbol,
-                      src_square.id_spaceship,
+                      team_symbols[spaceship.team],
+                      spaceship.id,
                       move.originX,
                       move.originY,
                       move.objetiveX,
