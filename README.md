@@ -21,8 +21,8 @@ The interprocess communication used are:
 - simulator -> leaders : pipes
 - leaders -> spaceships: pipes
 - spaceships -> simulator: message queue
-- state and map -> shared memory
-- turn -> alarm
+- state and map: shared memory
+- turn: alarm
 
 ## Requirements
 
