@@ -6,7 +6,7 @@ Autónoma de Madrid](https://uam.es/ss/Satellite/es/home.htm).
 
 ## Description
 
-The simulator process is the main process and who is responsible to manage
+The simulator process is the main process which is responsible to manage
 shared resources and coordinate the components in the simulation. Indeed,
 he establishes the arrival of a new turn. It will generate a leader process
 for each team. They will be responsible to coordinate and manage their spaceships.
